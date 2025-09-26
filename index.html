@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deck Collector – Bildkarten + verbesserte Lootbox</title>
+  <style>
+    :root{
+      --bg:#0b1020; --ink:#e9eef8; --muted:#9fb0cb; --accent:#7cf3d6; --accent-2:#8aa9ff; --danger:#ff6b6b;
+      --card-w: 200px; --card-h: 280px; --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji; color:var(--ink); background: radial-gradient(1200px 800px at 70% -10%, #1a2250 0%, #0b1020 60%) fixed;}
+    a{color:var(--accent)}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px clamp(16px,3vw,28px); border-bottom:1px solid #1c2648; backdrop-filter:saturate(120%) blur(6px); position:sticky; top:0; background:linear-gradient(180deg, rgba(9,14,32,.7), rgba(9,14,32,.3)); z-index:5}
+    .title{display:flex; gap:12px; align-items:center}
+    .logo{width:36px; height:36px; border-radius:10px; background: conic-gradient(from 0deg, #7cf3d6, #8aa9ff, #f9b8ff, #7cf3d6); box-shadow:0 0 24px #7cf3d680 inset}
+    .progress{opacity:.9}
+
+    main{max-width:1200px; margin:24px auto; padding:0 clamp(12px,3vw,28px) 40px}
+    .grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr)); gap:18px}
+
+    .slot{position:relative; width:100%; aspect-ratio: 200/280; border-radius:var(--radius); border:1px solid #233166; background:linear-gradient(180deg,#0f1534 0%,#0b1022 100%); display:grid; place-items:center; overflow:hidden}
+    .slot.locked::before{content:"LOCKED"; position:absolute; inset:auto 8px 8px auto; font-size:10px; letter-spacing:.16em; color:#6d7bb1; background:#132045; border:1px solid #1e2b57; padding:3px 6px; border-radius:6px}
+    .slot.locked .shine{position:absolute; inset:0; background:linear-gradient(120deg, transparent 0 35%, rgba(255,255,255,.06) 45%, transparent 60%); transform:skewX(-12deg); animation: shine 3.6s linear infinite}
+    @keyframes shine{0%{background-position:-120% 0}100%{background-position:120% 0}}
+
+    .card{position:relative; width:calc(var(--card-w) * .92); height:calc(var(--card-h) * .92); border-radius:calc(var(--radius) + 4px); background:#0c0f22; border:1px solid #2a3777; box-shadow:0 20px 40px rgba(0,0,0,.35), 0 0 0 1px rgba(124,243,214,.08) inset; overflow:hidden; transform-style:preserve-3d; transition: box-shadow .2s ease}
+    .card .inner{position:absolute; inset:8px; border-radius:14px; padding:10px; display:flex; flex-direction:column; gap:10px; background: linear-gradient(180deg,#121a3a 0%, #0d1431 40%, #0b1022 100%)}
+    .name{font-weight:800; letter-spacing:.02em; font-size:14px}
+    .illus{flex:1; border-radius:12px; background: radial-gradient(300px 180px at 60% 30%, #152358, #0c1536 60%); border:1px solid #223065; display:grid; place-items:center; overflow:hidden}
+    .illus img{max-width:100%; max-height:100%; object-fit:cover; border-radius:10px}
+    .meta{font-size:12px; color:var(--muted); display:flex; justify-content:space-between}
+
+    /* Holo shimmer for special cards */
+    .holo{position:relative; isolation:isolate}
+    .holo::before{content:""; position:absolute; inset:0; border-radius:inherit; mix-blend-mode: screen; background:
+      repeating-linear-gradient( 115deg, rgba(255,255,255,.08) 0 2px, transparent 2px 6px),
+      linear-gradient(135deg, rgba(124,243,214,.25), rgba(138,169,255,.15) 40%, rgba(249,184,255,.25));
+      opacity:.9; filter: saturate(160%);
+      animation: holoShift 6s linear infinite; pointer-events:none; z-index:1}
+    .holo::after{content:""; position:absolute; inset:-40%; background:
+      radial-gradient(120px 80px at 30% 20%, rgba(255,255,255,.25), transparent 70%),
+      radial-gradient(80px 60px at 70% 60%, rgba(255,255,255,.18), transparent 70%);
+      mix-blend-mode:screen; animation: holoSpark 7.5s ease-in-out infinite}
+    @keyframes holoShift{0%{background-position:0 0, 0 0} 100%{background-position:800px 0, 600px 0}}
+    @keyframes holoSpark{0%,100%{transform:translateX(-5%) rotate(0.001deg)}50%{transform:translateX(5%)}}
+
+    /* Overlay */
+    .overlay{position:fixed; inset:0; display:none; place-items:center; z-index:50; background: radial-gradient(900px 600px at 50% 10%, rgba(12,17,40,.9), rgba(8,12,28,.95)), rgba(3,6,16,.6)}
+    .overlay.active{display:grid}
+    .stage{position:relative; width:min(760px, 92vw); height:min(520px, 74vh); display:grid; place-items:center}
+
+    /* Enhanced chest */
+    .chest{position:relative; width:380px; height:190px; background:linear-gradient(#7a4a1f, #6a3c14); border:2px solid #3a1f07; border-radius:10px; box-shadow:0 8px 40px rgba(0,0,0,.5) inset}
+    .chest .band{position:absolute; inset:0; background:linear-gradient(90deg, transparent 0 44%, #b58b1a 44% 56%, transparent 56% 100%)}
+    .lid{position:absolute; bottom:100%; left:0; width:100%; height:74px; background:linear-gradient(#7a4a1f, #6a3c14); border:2px solid #3a1f07; border-bottom:none; border-radius:10px 10px 0 0; transform-origin: bottom; transform:rotateX(0deg); box-shadow:0 8px 30px rgba(0,0,0,.45) inset}
+    .chest.glow{box-shadow:0 0 24px rgba(252, 211, 77,.4), 0 8px 40px rgba(0,0,0,.5) inset}
+
+    /* Rays + flash */
+    .rays{position:absolute; width:520px; height:520px; border-radius:50%; background:
+      conic-gradient(from 0deg, rgba(255,255,255,.18), transparent 30%, rgba(255,255,255,.18) 35%, transparent 65%),
+      radial-gradient(closest-side, rgba(255,255,255,.18), transparent 70%);
+      filter: blur(6px); opacity:0; pointer-events:none}
+    .flash{position:absolute; width:280px; height:280px; border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,.9), rgba(255,255,255,.0) 60%); opacity:0; pointer-events:none}
+
+    .fly-card{position:absolute; width:var(--card-w); height:var(--card-h); border-radius:18px; border:1px solid #2a3777; overflow:hidden; opacity:0; transform:translateY(40px) scale(.9) rotate(6deg); cursor:grab}
+    .fly-card:active{cursor:grabbing}
+    .fly-card .inner{inset:10px}
+
+    .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid #2a3777; background:#0f1534; color:var(--ink); cursor:pointer}
+
+    .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#10183c; border:1px solid #2a3777; padding:10px 14px; border-radius:10px; display:none; z-index:60}
+    .toast.show{display:block}
+
+    .toolbar{display:flex; gap:10px; flex-wrap:wrap}
+
+    .footer{opacity:.6; font-size:12px; margin-top:18px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <div style="font-weight:800; letter-spacing:.02em">Deck Collector</div>
+        <div class="progress" id="progress">0 / 15 gesammelt</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="scanBtn">QR scannen (Kamera)</button>
+      <button class="btn" id="shareBtn">Link kopieren</button>
+      <button class="btn" id="resetBtn" title="Sammlung lokal löschen">Zurücksetzen</button>
+    </div>
+  </header>
+
+  <main>
+    <p>Scanne die QR‑Codes deiner physischen Karten oder öffne einen Freischalt‑Link im Format <code>?unlock=CODE</code>. Beim Einlösen erscheint eine verbesserte Lootbox‑Animation. Special‑Karten glänzen mit Holo‑Effekt ✨. Tipp: Im Overlay kannst du die freigeschaltete Karte <strong>ziehen</strong> und <strong>drehen</strong>.</p>
+
+    <section class="grid" id="grid"></section>
+
+    <p class="footer">Hinweis: Diese Demo speichert deinen Fortschritt im <em>localStorage</em> deines Geräts. Für Logins/Serverfunktionen später API/DB ergänzen.</p>
+  </main>
+
+  <!-- Lootbox Overlay -->
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true">
+    <div class="stage">
+      <div class="rays" id="rays"></div>
+      <div class="flash" id="flash"></div>
+      <div class="chest" id="chest">
+        <div class="band"></div>
+        <div class="lid" id="lid"></div>
+      </div>
+      <div class="fly-card" id="flyCard">
+        <div class="inner holo" id="flyInner">
+          <div class="name" id="flyName">Karte</div>
+          <div class="illus" id="flyIllus"></div>
+          <div class="meta"><span id="flyMeta">Special</span><span id="flyId">Demo</span></div>
+        </div>
+      </div>
+      <button class="btn" style="position:absolute; top:14px; right:14px" id="closeOverlay">Schließen</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/***********************
+ * FINAL CARDS (mit Bildern)
+ ***********************/
+const CARDS = [
+  {id:"c01", name:"Welcome to the Castle", img:"img/karte1.png",  special:false, code:"1501"},
+  {id:"c02", name:"Date Night",           img:"img/karte2.png",  special:false, code:"1502"},
+  {id:"c03", name:"Pyjama Party",         img:"img/karte3.png",  special:false, code:"1503"},
+  {id:"c04", name:"Dance with me",        img:"img/karte4.png",  special:false, code:"1504"},
+  {id:"c05", name:"Cancun Weather",       img:"img/karte5.png",  special:false, code:"1505"},
+  {id:"c06", name:"I LOVE You",           img:"img/karte6.png",  special:false, code:"1506"},
+  {id:"c07", name:"Happy Wife",           img:"img/karte7.png",  special:false, code:"1507"},
+  {id:"c08", name:"Five Villages?",       img:"img/karte8.png",  special:false, code:"1508"},
+  {id:"c09", name:"Matching Clothes",     img:"img/karte9.png",  special:false, code:"1509"},
+  {id:"c10", name:"In the Heide",         img:"img/karte10.png", special:false, code:"1510"},
+  {id:"c11", name:"Cat Love",             img:"img/karte11.png", special:false, code:"1511"},
+  {id:"c12", name:"Gelato mi Amore",      img:"img/karte12.png", special:false, code:"1512"},
+  {id:"s01", name:"Wedding Dream",        img:"img/holo1.png",   special:true,  code:"HOLO1"},
+  {id:"s02", name:"Taco Lover",           img:"img/holo2.png",   special:true,  code:"HOLO2"},
+  {id:"s03", name:"Japan Trip",           img:"img/holo3.png",   special:true,  code:"HOLO3"},
+];
+
+const STORAGE_KEY = "deck-collector-v1";
+
+/***********************
+ * UTILITIES           *
+ ***********************/
+const qs = sel => document.querySelector(sel);
+const el = (tag, cls) => {const n=document.createElement(tag); if(cls) n.className=cls; return n;}
+const toast = (msg, ms=2400)=>{const t=qs('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms)};
+const save = (ids)=> localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+const load = ()=> { try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }catch{ return [] } };
+
+/***********************
+ * RENDER GRID         *
+ ***********************/
+function renderGrid(){
+  const own = new Set(load());
+  const grid = qs('#grid');
+  grid.innerHTML = '';
+  CARDS.forEach(card => {
+    const slot = el('div','slot' + (own.has(card.id)?'':' locked'));
+
+    if(own.has(card.id)){
+      const cardEl = makeCard(card);
+      enableTilt(cardEl); // hübscher 3D-Tilt im Grid
+      cardEl.title = 'Klicke zum Anzeigen';
+      cardEl.addEventListener('click', ()=> viewCard(card));
+      slot.appendChild(cardEl);
+    } else {
+      const lock = el('div','shine');
+      const silhouette = el('div');
+      silhouette.style.width='60%'; silhouette.style.height='60%'; silhouette.style.borderRadius='14px';
+      silhouette.style.border='1px dashed #314081'; silhouette.style.background='linear-gradient(180deg,#0c1333,#0a0f26)';
+      slot.appendChild(silhouette); slot.appendChild(lock);
+    }
+    grid.appendChild(slot);
+  });
+  qs('#progress').textContent = `${own.size} / ${CARDS.length} gesammelt`;
+}
+
+function makeCard(card){
+  const cardEl = el('div','card');
+  const inner = el('div','inner' + (card.special?' holo':''));
+  const name = el('div','name'); name.textContent = card.name;
+  const ill = el('div','illus');
+  if(card.img){ const img=document.createElement('img'); img.src=card.img; img.alt=card.name; ill.appendChild(img); }
+  const meta = el('div','meta'); meta.innerHTML = `<span>${card.special? 'Special • Holo' : 'Standard'}</span><span>${card.id.toUpperCase()}</span>`;
+  inner.append(name, ill, meta); cardEl.appendChild(inner);
+  return cardEl;
+}
+
+/***********************
+ * VIEW (Overlay) & INTERAKTION
+ ***********************/
+function viewCard(card){
+  const overlay = qs('#overlay');
+  overlay.classList.add('active');
+  setupFlyCard(card); // Karte ins Overlay laden
+}
+
+function setupFlyCard(card){
+  const fly = qs('#flyCard');
+  const inner = qs('#flyInner');
+  const illus = qs('#flyIllus');
+  inner.classList.toggle('holo', !!card.special);
+  qs('#flyName').textContent = card.name;
+  qs('#flyMeta').textContent = card.special? 'Special • Holo' : 'Standard';
+  qs('#flyId').textContent = card.id.toUpperCase();
+  illus.innerHTML = '';
+  const img = document.createElement('img'); img.src = card.img; img.alt = card.name; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.borderRadius='10px';
+  illus.appendChild(img);
+  fly.style.opacity = 1; fly.style.transform='translateY(0) scale(1)';
+
+  enableSpinAndDrag(fly); // <— neue Interaktion: ziehen & drehen
+}
+
+function enableTilt(node){
+  let rect, active=false;
+  const update = (x,y)=>{
+    const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2;
+    const dx = (x - cx) / (rect.width/2); const dy = (y - cy) / (rect.height/2);
+    const rx = (+dy * 8).toFixed(2); const ry = (-dx * 10).toFixed(2);
+    node.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+    node.style.boxShadow = `0 ${12 - dy*8}px ${36 + Math.abs(dx*12)}px rgba(0,0,0,.35)`;
+  };
+  const reset = ()=>{ node.style.transform=''; node.style.boxShadow=''; active=false };
+  node.addEventListener('pointerenter', e=>{rect=node.getBoundingClientRect(); active=true});
+  node.addEventListener('pointermove', e=>{ if(!active){rect=node.getBoundingClientRect(); active=true} update(e.clientX, e.clientY) });
+  node.addEventListener('pointerleave', reset);
+  node.addEventListener('pointerdown', e=>{ node.setPointerCapture(e.pointerId); rect=node.getBoundingClientRect(); active=true });
+  node.addEventListener('pointerup', reset);
+}
+
+// Interaktive Rotation + Verschieben + Zoom im Overlay
+function enableSpinAndDrag(node){
+  let isDown=false, lastX=0, lastY=0;
+  let rotX=0, rotY=0, tx=0, ty=0, scale=1;
+  let vx=0, vy=0, vrx=0, vry=0, vs=0, raf;
+  const maxTilt=45, minScale=0.6, maxScale=1.8;
+
+  // Pinch support
+  let pointers=new Map();
+  function pointerAvg(){ let sx=0, sy=0; for(const p of pointers.values()){ sx+=p.x; sy+=p.y } const n=pointers.size||1; return {x:sx/n, y:sy/n} }
+  function pinchDist(){ const arr=[...pointers.values()]; if(arr.length<2) return 0; const dx=arr[0].x-arr[1].x, dy=arr[0].y-arr[1].y; return Math.hypot(dx,dy) }
+  let baseDist=0, baseScale=1;
+
+  const apply=()=>{ node.style.transform = `translate(${tx}px, ${ty}px) perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})` };
+  const clampScale=()=>{ scale = Math.max(minScale, Math.min(maxScale, scale)) };
+
+  const inertia=()=>{
+    vx*=0.92; vy*=0.92; vrx*=0.92; vry*=0.92; vs*=0.85;
+    tx+=vx; ty+=vy; rotX+=vry; rotY+=vrx; scale+=vs; clampScale();
+    apply();
+    if(Math.abs(vx)+Math.abs(vy)+Math.abs(vrx)+Math.abs(vry)+Math.abs(vs) > 0.06){ raf=requestAnimationFrame(inertia) }
+  };
+
+  node.onpointerdown = (e)=>{
+    isDown=true; node.setPointerCapture(e.pointerId); lastX=e.clientX; lastY=e.clientY; if(raf) cancelAnimationFrame(raf);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){ baseDist=pinchDist(); baseScale=scale }
+  };
+  node.onpointermove = (e)=>{
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size>=2){
+      // Pinch zoom around average
+      const d=pinchDist(); if(baseDist>0){ const factor=d/baseDist; scale = baseScale * factor; clampScale(); apply(); }
+      return;
+    }
+    if(!isDown) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    // Left-drag rotates by default
+    rotY += dx*0.35; rotX -= dy*0.35; rotX=Math.max(-maxTilt, Math.min(maxTilt, rotX)); vry = -dy*0.35; vrx = dx*0.35;
+    // Hold SHIFT to drag/translate instead of rotate
+    if(e.shiftKey){ rotY -= dx*0.35; rotX += dy*0.35; vry=vrx=0; tx+=dx; ty+=dy; vx=dx; vy=dy; }
+    apply();
+  };
+  node.onpointerup = (e)=>{ isDown=false; pointers.delete(e.pointerId); if(pointers.size<2){ raf=requestAnimationFrame(inertia) } };
+  node.onpointercancel = (e)=>{ pointers.delete(e.pointerId) };
+
+  // Wheel zoom
+  node.onwheel = (e)=>{ e.preventDefault(); const delta = -Math.sign(e.deltaY) * (Math.abs(e.deltaY)>40? 0.08:0.04); scale += delta; clampScale(); vs=delta; apply(); };
+
+  // Double-click to reset pose
+  node.ondblclick = ()=>{ rotX=rotY=tx=ty=0; scale=1; apply(); };
+}
+
+/*****************************
+ * UNLOCK FLOW (QR)    *
+ ***********************/
+function unlockByCode(code){
+  if(!code) return false;
+  const card = CARDS.find(c => c.code.toUpperCase() === String(code).toUpperCase());
+  if(!card){ toast('Ungültiger Code'); return false }
+  const own = new Set(load());
+  if(own.has(card.id)){ toast('Diese Karte hast du bereits.'); setupFlyCard(card); openOverlayFX(); return true }
+  own.add(card.id); save([...own]); renderGrid();
+  playLootbox(card);
+  return true;
+}
+
+/***********************
+ * LOOTBOX ANIMATION (verbessert)
+ ***********************/
+function openOverlayFX(){ qs('#overlay').classList.add('active') }
+
+function playLootbox(card){
+  const overlay = qs('#overlay'); const lid = qs('#lid'); const fly = qs('#flyCard'); const chest=qs('#chest'); const rays=qs('#rays'); const flash=qs('#flash');
+  overlay.classList.add('active');
+  setupFlyCard(card);
+
+  // Reset visuals
+  rays.style.opacity=0; flash.style.opacity=0; fly.style.opacity=0; fly.style.transform='translateY(30px) scale(.92) rotate(0deg)'; chest.classList.remove('glow');
+
+  // Chest bounce in
+  chest.animate([{ transform:'translateY(0)' },{ transform:'translateY(-6px)' },{ transform:'translateY(0)' }], { duration: 420, easing:'ease-out' });
+
+  // Open lid
+  lid.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-112deg)' }], { duration: 680, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
+
+  // Rays + flash
+  setTimeout(()=>{
+    rays.animate([{ opacity:0, transform:'scale(.8) rotate(0deg)' }, { opacity:1, transform:'scale(1) rotate(120deg)' }], { duration:500, easing:'ease-out', fill:'forwards' });
+    flash.animate([{ opacity:0 }, { opacity:1 }, { opacity:0 }], { duration:420, easing:'ease-out' });
+    chest.classList.add('glow');
+  }, 420);
+
+  // Card fly out
+  setTimeout(()=>{
+    fly.style.opacity=1;
+    const anim = fly.animate([
+      { transform:'translateY(30px) scale(.92) rotate(-4deg)' },
+      { transform:'translateY(-140px) scale(1) rotate(0deg)' },
+    ], { duration: 880, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
+    anim.onfinish = ()=> { burstConfetti(160); haloRing(); glowPulse(fly) }
+  }, 520);
+}
+
+function glowPulse(node){ node.animate([{ boxShadow:'0 0 0px rgba(124,243,214,0.0)' },{ boxShadow:'0 0 60px rgba(124,243,214,0.55)' },{ boxShadow:'0 0 0px rgba(124,243,214,0.0)' }], { duration: 1000, easing:'ease-in-out' }); }
+
+function burstConfetti(n=120){
+  for(let i=0;i<n;i++){
+    const p = el('div');
+    const size = 6 + Math.random()*6; p.style.width=p.style.height=size+"px";
+    p.style.position='fixed'; p.style.left=(Math.random()*100)+"%"; p.style.top='-10px';
+    p.style.background = `hsl(${Math.random()*360}, 85%, 65%)`;
+    p.style.borderRadius = Math.random()>.5? '2px':'50%';
+    p.style.pointerEvents='none'; p.style.zIndex=60; p.style.filter='drop-shadow(0 2px 6px rgba(0,0,0,.35))';
+    document.body.appendChild(p);
+    const dx = (Math.random()-.5)*160; const dur= 1500 + Math.random()*1200;
+    p.animate([{ transform:`translate(0, 0) rotate(0deg)`, opacity:1 },{ transform:`translate(${dx}px, 100vh) rotate(${Math.random()*600-300}deg)`, opacity:.9 }], { duration: dur, easing:'cubic-bezier(.2,.8,.2,1)' }).onfinish = ()=> p.remove();
+  }
+}
+
+function haloRing(){
+  const ring = el('div'); ring.style.position='absolute'; ring.style.width='20px'; ring.style.height='20px'; ring.style.border='2px solid rgba(124,243,214,.8)'; ring.style.borderRadius='50%'; ring.style.top='50%'; ring.style.left='50%'; ring.style.transform='translate(-50%,-50%)'; ring.style.opacity='0.9'; ring.style.filter='blur(0.6px)'; ring.style.zIndex=55;
+  qs('.stage').appendChild(ring);
+  ring.animate([{ transform:'translate(-50%,-50%) scale(.6)', opacity:.9 }, { transform:'translate(-50%,-50%) scale(6)', opacity:0 }], { duration: 900, easing:'ease-out' }).onfinish = ()=> ring.remove();
+}
+
+/***********************
+ * CAMERA QR (optional)
+ ***********************/
+async function scanCamera(){
+  if('BarcodeDetector' in window){
+    try{
+      const detector = new BarcodeDetector({ formats:['qr_code'] });
+      const video = document.createElement('video'); video.playsInline = true; video.muted=true; video.autoplay=true; video.style.maxWidth='90vw';
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+      video.srcObject = stream; toast('Kamera geöffnet…');
+      const overlay = qs('#overlay'); overlay.classList.add('active');
+      const stage = overlay.querySelector('.stage'); stage.appendChild(video);
+      let stop=false;
+      async function tick(){
+        if(stop) return; requestAnimationFrame(tick);
+        if(video.readyState >= 2){
+          const codes = await detector.detect(video);
+          if(codes && codes[0]){
+            stop=true; stream.getTracks().forEach(t=>t.stop()); video.remove();
+            let codeVal = codes[0].rawValue;
+            try{ const u = new URL(codeVal); codeVal = u.searchParams.get('unlock') || codeVal; }catch{}
+            unlockByCode(codeVal);
+          }
+        }
+      }
+      tick();
+      qs('#closeOverlay').onclick = ()=>{ stop=true; try{stream.getTracks().forEach(t=>t.stop())}catch{} video.remove(); overlay.classList.remove('active') }
+      return;
+    }catch(err){ console.warn(err) }
+  }
+  const code = prompt('BarcodeDetector nicht verfügbar. Code manuell eingeben:');
+  if(code) unlockByCode(code);
+}
+
+/***********************
+ * SHARE & BOOTSTRAP   *
+ ***********************/
+function copyUnlockLink(){
+  const owned = new Set(load());
+  const next = CARDS.find(c=>!owned.has(c.id));
+  if(!next){ toast('Du hast bereits alle Karten!'); return }
+  const url = new URL(location.href);
+  url.searchParams.set('unlock', next.code);
+  navigator.clipboard.writeText(url.toString()).then(()=> toast(`Link kopiert für: ${next.name}`))
+}
+
+renderGrid();
+qs('#resetBtn').addEventListener('click', ()=>{ localStorage.removeItem(STORAGE_KEY); renderGrid(); toast('Sammlung zurückgesetzt') });
+qs('#shareBtn').addEventListener('click', copyUnlockLink);
+qs('#scanBtn').addEventListener('click', scanCamera);
+qs('#closeOverlay').addEventListener('click', ()=>{ qs('#overlay').classList.remove('active'); });
+
+const params = new URLSearchParams(location.search);
+const unlockParam = params.get('unlock');
+if(unlockParam){ setTimeout(()=> unlockByCode(unlockParam), 200) }
+</script>
+</body>
+</html>
