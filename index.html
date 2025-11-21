@@ -103,10 +103,13 @@
     .cover .lock-badge .i{width:16px; height:16px; display:grid; place-items:center; border-radius:50%; border:1px solid #2a3b7a; font-weight:700; font-size:11px}
     .cover .tooltip{position:absolute; top:36px; right:8px; background:#0f1838; color:#cfe0ff; border:1px solid #223169; padding:8px 10px; font-size:12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; transform:translateY(-4px); transition:.15s ease}
     .cover .lock-badge:hover + .tooltip{opacity:1; transform:translateY(0)}
-    .cover .download-btn{position:absolute; top:8px; right:8px; display:none; z-index:2}
     .cover.unlocked img{filter:none}
     .cover.unlocked .veil{display:none}
-    .cover.unlocked .download-btn{display:inline-flex}
+
+    /* Download-Icon unten rechts auf freigeschaltetem Cover */
+    .cover .dl-icon{position:absolute; right:10px; bottom:10px; z-index:3; display:inline-grid; place-items:center; width:38px; height:38px; border-radius:12px; background:rgba(12,18,42,.85); border:1px solid #223169; box-shadow:0 4px 12px rgba(0,0,0,.35); cursor:pointer; text-decoration:none}
+    .cover .dl-icon:hover{transform:translateY(-1px)}
+    .cover .dl-icon svg{width:20px; height:20px; fill:#cfe0ff; opacity:.95}
 
     /* Modal: Cover Unlocked */
     .modal{position:fixed; inset:0; display:none; place-items:center; z-index:70; background: radial-gradient(900px 600px at 50% 10%, rgba(12,17,40,.92), rgba(8,12,28,.97)), rgba(3,6,16,.6)}
@@ -173,9 +176,7 @@
       </header>
       <div class="content">
         <div class="preview"><img id="coverPreview" alt="Deck Cover Preview" /></div>
-        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end">
-          <a class="btn" id="downloadCover" download>Download Cover</a>
-        </div>
+        
       </div>
     </div>
   </div>
@@ -311,10 +312,20 @@ function renderDecks(){
         // if completed and cover successfully loaded, add download button now
         if(completed && COVER_SRC[deck.id]){
           cover.classList.add('unlocked');
-          const dl = document.createElement('a'); dl.className='btn download-btn'; dl.href = COVER_SRC[deck.id]; dl.download = '';
-          dl.textContent = 'Download Cover';
-          dl.addEventListener('click', (ev)=> ev.stopPropagation());
-          cover.appendChild(dl);
+          // Download-Icon unten rechts einfügen
+          const link = document.createElement('a');
+          link.className = 'dl-icon';
+          link.href = (COVER_SRC[deck.id] || '');
+          // Dateiendung ermitteln für schönen Dateinamen (ohne Regex)
+          var src = link.href;
+          var dot = src.lastIndexOf('.') >= 0 ? src.lastIndexOf('.') : src.length;
+          var ext = src.slice(dot);
+          if(!ext || ext.length>5){ ext = '.jpg'; }
+          var fname = (deck.name||'cover').trim().split(' ').join('_') + ext;
+          link.setAttribute('download', fname);
+          link.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v8.586l2.293-2.293a1 1 0 1 1 1.414 1.414l-4.004 4.004a1 1 0 0 1-1.414 0L7.286 11.707a1 1 0 1 1 1.414-1.414L11 12.586V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z"/></svg>';
+          link.addEventListener('click', (ev)=> ev.stopPropagation());
+          cover.appendChild(link);
         }
       });
       cover.appendChild(img);
@@ -659,16 +670,14 @@ if(unlockParam){ setTimeout(()=> unlockByCode(unlockParam), 200) }
   function showCoverUnlocked(deck){
   var m = document.querySelector('#coverModal');
   var img = document.querySelector('#coverPreview');
-  var dl  = document.querySelector('#downloadCover');
-  var src = COVER_SRC[deck.id] || deck.coverImg; // if we resolved an extension, use it
-  // if deck.coverImg has no extension, try .jpg fallback for modal
-  if(!/\.[a-zA-Z0-9]{3,4}$/.test(src)) src = src + '.jpg';
+  var src = (COVER_SRC[deck.id] || deck.coverImg || '');
+  // Falls coverImg ohne Endung ist und nichts aufgelöst wurde → .jpg anfügen
+  if(src && src.indexOf('.') === -1){ src = src + '.jpg'; }
   img.src = src; img.alt = (deck.name || 'Deck') + ' cover';
-  var fname = ((deck.name||'cover')+".jpg").split(' ').join('_');
-  dl.href = src; dl.setAttribute('download', fname);
   m.classList.add('active');
 }
   document.querySelector('#closeCoverModal').addEventListener('click', function(){ document.querySelector('#coverModal').classList.remove('active'); });
   </script>
 </body>
 </html>
+
