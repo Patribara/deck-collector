@@ -96,6 +96,26 @@
     /* Breadcrumbs */
     .crumbs{display:flex; gap:8px; align-items:center; margin:8px 0 18px}
     .crumbs a{color:#b8c7ea; text-decoration:none; border:1px solid #223169; padding:6px 10px; border-radius:10px}
+      /* Cover-Lock Styles */
+    .cover.locked{position:relative}
+    .cover.locked img{filter: blur(10px) saturate(.6) contrast(.85) brightness(.85)}
+    .cover .lock-badge{position:absolute; top:8px; right:8px; display:inline-flex; align-items:center; gap:6px; font-size:12px; background:rgba(8,12,28,.7); border:1px solid #233169; color:#c9d5f7; padding:6px 8px; border-radius:10px}
+    .cover .lock-badge .i{width:16px; height:16px; display:grid; place-items:center; border-radius:50%; border:1px solid #2a3b7a; font-weight:700; font-size:11px}
+    .cover .tooltip{position:absolute; top:36px; right:8px; background:#0f1838; color:#cfe0ff; border:1px solid #223169; padding:8px 10px; font-size:12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; transform:translateY(-4px); transition:.15s ease}
+    .cover .lock-badge:hover + .tooltip{opacity:1; transform:translateY(0)}
+    .cover .download-btn{position:absolute; top:8px; right:8px; display:none; z-index:2}
+    .cover.unlocked img{filter:none}
+    .cover.unlocked .veil{display:none}
+    .cover.unlocked .download-btn{display:inline-flex}
+
+    /* Modal: Cover Unlocked */
+    .modal{position:fixed; inset:0; display:none; place-items:center; z-index:70; background: radial-gradient(900px 600px at 50% 10%, rgba(12,17,40,.92), rgba(8,12,28,.97)), rgba(3,6,16,.6)}
+    .modal.active{display:grid}
+    .modal .box{width:min(760px,92vw); border:1px solid #223169; background:linear-gradient(180deg,#0e1432,#0a1026); border-radius:16px; padding:18px; color:#e6eeff}
+    .modal .box header{display:flex; justify-content:space-between; align-items:center; border:none; padding:0; position:static; background:none}
+    .modal .box .content{display:grid; gap:12px; margin-top:10px}
+    .modal .preview{border:1px solid #223169; border-radius:12px; overflow:hidden; max-height:48vh}
+    .modal .preview img{width:100%; height:auto; display:block}
   </style>
 </head>
 <body>
@@ -126,6 +146,39 @@
       <section class="grid" id="grid"></section>
     </div>
   </main>
+
+  <!-- Manual Code Modal (fallback for QR scan) -->
+  <div class="modal" id="manualScanModal" role="dialog" aria-modal="true" aria-labelledby="manualScanTitle" style="z-index:75;display:none;place-items:center;">
+    <div class="box">
+      <header>
+        <h3 id="manualScanTitle" style="margin:0">Manuell freischalten</h3>
+        <button class="btn" id="closeManualModal">Schließen</button>
+      </header>
+      <div class="content" style="gap:10px">
+        <label style="display:block">Code oder URL eingeben:</label>
+        <input id="manualCodeInput" type="text" placeholder="z.B. 1501 oder https://...unlock=1501" style="width:100%; padding:10px; border-radius:10px; border:1px solid #223169; background:#0e1432; color:#e6eeff" />
+        <div style="display:flex; gap:10px; justify-content:flex-end">
+          <button class="btn" id="manualSubmitBtn">Freischalten</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cover-Unlocked Modal -->
+  <div class="modal" id="coverModal" role="dialog" aria-modal="true" aria-labelledby="coverModalTitle">
+    <div class="box">
+      <header>
+        <h3 id="coverModalTitle" style="margin:0">Your Cover Image is now unlocked 🎉</h3>
+        <button class="btn" id="closeCoverModal">Schließen</button>
+      </header>
+      <div class="content">
+        <div class="preview"><img id="coverPreview" alt="Deck Cover Preview" /></div>
+        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end">
+          <a class="btn" id="downloadCover" download>Download Cover</a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Lootbox Overlay -->
   <div class="overlay" id="overlay" role="dialog" aria-modal="true">
@@ -158,7 +211,7 @@ const DECKS = [
     id: 'season1',
     name: 'Season 1',
     cover: 'S1',
-    coverImg: 'img/cover-season1.jpg',
+    coverImg: 'img/CoverOXXO',
     cards: [
       {id:"c01", name:"Welcome to the Castle", img:"img/karte1.png",  special:false, code:"1501"},
       {id:"c02", name:"Date Night",           img:"img/karte2.png",  special:false, code:"1502"},
@@ -178,7 +231,7 @@ const DECKS = [
     id: 'mystery',
     name: 'MysteryHolo',
     cover: '✨',
-    coverImg: 'img/cover-mystery.jpg',
+    coverImg: 'img/CoverYOURNAME',
     cards: [
       {id:"s01", name:"Wedding Dream", img:"img/holo1.png", special:true,  code:"HOLO1"},
       {id:"s02", name:"Taco Lover",    img:"img/holo2.png", special:true,  code:"HOLO2"},
@@ -189,7 +242,7 @@ const DECKS = [
     id: 'season2',
     name: 'Season 2',
     cover: 'S2',
-    coverImg: 'img/cover-season2.jpg',
+    coverImg: 'img/CoverTravel',
     cards: [
       {id:"s2c01", name:"Northernlights",         img:"img/Travel1.png",  special:false, code:"S2-01"},
       {id:"s2c02", name:"Luchador Love",           img:"img/Travel2.png",  special:false, code:"S2-02"},
@@ -216,6 +269,7 @@ const toast = (msg, ms=2400)=>{const t=qs('#toast'); t.textContent=msg; t.classL
 const save = (ids)=> localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
 const load = ()=> { try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }catch{ return [] } };
 const ALL_CARDS = DECKS.flatMap(d=> d.cards.map(c=> ({...c, deckId:d.id})) );
+const COVER_SRC = {}; // deckId -> resolved cover URL (with extension)
 
 let CURRENT_DECK = null; // deckId oder null (Übersicht)
 
@@ -233,15 +287,56 @@ function renderDecks(){
   DECKS.forEach(deck=>{
     const total = deck.cards.length;
     const got = deck.cards.filter(c=> own.has(c.id)).length;
+    const completed = got === total && total>0;
+
     const node = el('div','deck');
     const cover = el('div','cover');
+
+    // helper to resolve cover path with extension fallbacks
+    function resolveAndLoadCover(basePath, cb){
+      const hasExt = /\.[a-zA-Z0-9]{3,4}$/.test(basePath||'');
+      const candidates = hasExt ? [basePath] : [basePath+'.jpg', basePath+'.png', basePath+'.jpeg', basePath+'.webp'];
+      let idx = 0; const img = new Image(); img.alt = deck.name;
+      function tryNext(){ if(idx>=candidates.length){ cb(null); return; } img.src = candidates[idx++]; }
+      img.onload = ()=> cb(img);
+      img.onerror = tryNext;
+      tryNext();
+      return img;
+    }
+
     if(deck.coverImg){
-      const img = new Image(); img.src = deck.coverImg; img.alt = deck.name;
+      const veil = el('div','veil');
+      const img = resolveAndLoadCover(deck.coverImg, function(loaded){
+        if(loaded){ COVER_SRC[deck.id] = loaded.src; }
+        // if completed and cover successfully loaded, add download button now
+        if(completed && COVER_SRC[deck.id]){
+          cover.classList.add('unlocked');
+          const dl = document.createElement('a'); dl.className='btn download-btn'; dl.href = COVER_SRC[deck.id]; dl.download = '';
+          dl.textContent = 'Download Cover';
+          dl.addEventListener('click', (ev)=> ev.stopPropagation());
+          cover.appendChild(dl);
+        }
+      });
       cover.appendChild(img);
-      const veil = el('div','veil'); cover.appendChild(veil);
+      cover.appendChild(veil);
     } else {
       cover.textContent = deck.cover;
     }
+
+    // Lock / Unlock UI (blur + tooltip)
+    if(deck.coverImg){
+      if(!completed){
+        cover.classList.add('locked');
+        const badge = el('div','lock-badge');
+        const dot = el('div','i'); dot.textContent='i'; badge.appendChild(dot);
+        const txt = document.createElement('span'); txt.textContent = 'Cover locked'; badge.appendChild(txt);
+        cover.appendChild(badge);
+        const tip = el('div','tooltip'); tip.textContent = 'This Cover is still locked. Collect all Cards to Unlock it';
+        cover.appendChild(tip);
+      }
+      // if completed but image not yet loaded, class will be toggled + button added in onload above
+    }
+
     const h3 = document.createElement('h3'); h3.textContent = deck.name; h3.style.margin='12px 0 2px';
     const meta = el('div','meta'); meta.innerHTML = `<span>${got} / ${total} gesammelt</span><span class="pill">${deck.id}</span>`;
     node.append(cover, h3, meta);
@@ -387,12 +482,24 @@ function unlockByCode(code){
   const card = ALL_CARDS.find(c => c.code && c.code.toUpperCase() === String(code).toUpperCase());
   if(!card){ toast('Ungültiger Code'); return false }
   const own = new Set(load());
-  if(own.has(card.id)){ toast('Diese Karte hast du bereits.'); setupFlyCard(card); openOverlayFX();
-    if(CURRENT_DECK!==card.deckId) openDeck(card.deckId);
-    return true }
+  const deckId = card.deckId;
+  const wasComplete = isDeckComplete(deckId, own);
+
+  if(own.has(card.id)){
+    toast('Diese Karte hast du bereits.'); setupFlyCard(card); openOverlayFX();
+    if(CURRENT_DECK!==deckId) openDeck(deckId);
+    return true
+  }
   own.add(card.id); save([...own]);
-  if(CURRENT_DECK!==card.deckId) openDeck(card.deckId); else renderGrid(CURRENT_DECK);
+  if(CURRENT_DECK!==deckId) openDeck(deckId); else renderGrid(CURRENT_DECK);
   playLootbox(card);
+
+  // Check completion after adding
+  const nowComplete = isDeckComplete(deckId, own);
+  if(!wasComplete && nowComplete){
+    const deck = DECKS.find(d=>d.id===deckId);
+    if(deck && deck.coverImg) showCoverUnlocked(deck);
+  }
   return true;
 }
 
@@ -419,35 +526,89 @@ function haloRing(){ const ring = el('div'); ring.style.position='absolute'; rin
  * CAMERA QR (optional)
  ***********************/
 async function scanCamera(){
-  if('BarcodeDetector' in window){
-    try{
+  const overlay = qs('#overlay');
+  const stage = overlay.querySelector('.stage');
+
+  // Clean previous video if any
+  stage.querySelectorAll('video').forEach(v=>{ try{v.srcObject?.getTracks().forEach(t=>t.stop())}catch{} v.remove(); });
+
+  // Feature detection
+  const supportsBarcode = ('BarcodeDetector' in window);
+  const supportsMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  if(!supportsMedia){
+    toast('Keine Kamera verfügbar – manueller Code-Eingabemodus.');
+    openManualModal();
+    return;
+  }
+
+  overlay.classList.add('active');
+
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'} }, audio:false });
+    const video = document.createElement('video');
+    video.playsInline = true; video.setAttribute('playsinline','');
+    video.muted = true; video.autoplay = true; video.style.maxWidth='92vw'; video.style.maxHeight='70vh'; video.style.border='1px solid #223169'; video.style.borderRadius='12px';
+    video.srcObject = stream; stage.appendChild(video);
+    try{ await video.play(); }catch(_){}
+
+    let stop=false;
+
+    if(supportsBarcode){
       const detector = new BarcodeDetector({ formats:['qr_code'] });
-      const video = document.createElement('video'); video.playsInline = true; video.muted=true; video.autoplay=true; video.style.maxWidth='90vw';
-      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
-      video.srcObject = stream; toast('Kamera geöffnet…');
-      const overlay = qs('#overlay'); overlay.classList.add('active');
-      const stage = overlay.querySelector('.stage'); stage.appendChild(video);
-      let stop=false;
+      toast('Kamera geöffnet… Richte den QR-Code ins Bild.');
       async function tick(){
         if(stop) return; requestAnimationFrame(tick);
         if(video.readyState >= 2){
-          const codes = await detector.detect(video);
-          if(codes && codes[0]){
-            stop=true; stream.getTracks().forEach(t=>t.stop()); video.remove();
-            let codeVal = codes[0].rawValue;
-            try{ const u = new URL(codeVal); codeVal = u.searchParams.get('unlock') || codeVal; }catch{}
-            unlockByCode(codeVal);
-          }
+          try{
+            const codes = await detector.detect(video);
+            if(codes && codes[0]){
+              stop = true;
+              stream.getTracks().forEach(t=>t.stop());
+              video.remove();
+              let codeVal = codes[0].rawValue;
+              try{ const u = new URL(codeVal); codeVal = u.searchParams.get('unlock') || codeVal; }catch{}
+              unlockByCode(codeVal);
+            }
+          }catch(err){ /* detector may throw sporadically; ignore frame */ }
         }
       }
       tick();
-      qs('#closeOverlay').onclick = ()=>{ stop=true; try{stream.getTracks().forEach(t=>t.stop())}catch{} video.remove(); overlay.classList.remove('active') }
+
+      // Close handler cleans up
+      qs('#closeOverlay').onclick = ()=>{ stop=true; try{stream.getTracks().forEach(t=>t.stop())}catch{} video.remove(); overlay.classList.remove('active'); };
       return;
-    }catch(err){ console.warn(err) }
+    }
+
+    // If no BarcodeDetector → show manual modal while camera stream is active
+    toast('QR-Scanning nicht unterstützt – bitte Code manuell eingeben.');
+    openManualModal();
+    // Close should also stop camera
+    qs('#closeOverlay').onclick = ()=>{ try{stream.getTracks().forEach(t=>t.stop())}catch{} video.remove(); overlay.classList.remove('active'); };
+  }catch(err){
+    console.warn('scanCamera error:', err);
+    toast('Kamera-Zugriff abgelehnt oder fehlgeschlagen.');
+    overlay.classList.remove('active');
+    openManualModal();
   }
-  const code = prompt('BarcodeDetector nicht verfügbar. Code manuell eingeben:');
-  if(code) unlockByCode(code);
 }
+
+function openManualModal(){
+  const m = qs('#manualScanModal');
+  m.style.display = 'grid';
+  const input = qs('#manualCodeInput');
+  setTimeout(()=> input && input.focus(), 50);
+}
+
+qs('#closeManualModal').addEventListener('click', ()=>{ qs('#manualScanModal').style.display='none'; });
+qs('#manualSubmitBtn').addEventListener('click', ()=>{
+  const raw = qs('#manualCodeInput').value.trim();
+  if(!raw){ toast('Bitte Code eingeben'); return }
+  let val = raw;
+  try{ const u = new URL(raw); val = u.searchParams.get('unlock') || raw; }catch{}
+  qs('#manualScanModal').style.display='none';
+  unlockByCode(val);
+});
 
 /***********************
  * SHARE & BOOTSTRAP   *
@@ -488,5 +649,26 @@ const params = new URLSearchParams(location.search);
 const unlockParam = params.get('unlock');
 if(unlockParam){ setTimeout(()=> unlockByCode(unlockParam), 200) }
 </script>
+  <script>
+  // Helpers for deck completion & modal (appended)
+  function isDeckComplete(deckId, ownSet){
+    const deck = DECKS.find(d=>d.id===deckId);
+    if(!deck) return false;
+    return deck.cards.every(function(c){ return ownSet.has(c.id); });
+  }
+  function showCoverUnlocked(deck){
+  var m = document.querySelector('#coverModal');
+  var img = document.querySelector('#coverPreview');
+  var dl  = document.querySelector('#downloadCover');
+  var src = COVER_SRC[deck.id] || deck.coverImg; // if we resolved an extension, use it
+  // if deck.coverImg has no extension, try .jpg fallback for modal
+  if(!/\.[a-zA-Z0-9]{3,4}$/.test(src)) src = src + '.jpg';
+  img.src = src; img.alt = (deck.name || 'Deck') + ' cover';
+  var fname = ((deck.name||'cover')+".jpg").split(' ').join('_');
+  dl.href = src; dl.setAttribute('download', fname);
+  m.classList.add('active');
+}
+  document.querySelector('#closeCoverModal').addEventListener('click', function(){ document.querySelector('#coverModal').classList.remove('active'); });
+  </script>
 </body>
 </html>
