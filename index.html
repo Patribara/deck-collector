@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Deck Collector – Bildkarten + verbesserte Lootbox</title>
+  <title>Deck Collector – Mehrere Decks</title>
   <style>
     :root{
       --bg:#0b1020; --ink:#e9eef8; --muted:#9fb0cb; --accent:#7cf3d6; --accent-2:#8aa9ff; --danger:#ff6b6b;
@@ -11,7 +11,11 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji; color:var(--ink); background: radial-gradient(1200px 800px at 70% -10%, #1a2250 0%, #0b1020 60%) fixed;}
+    body{margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji; color:var(--ink); background:
+      linear-gradient(180deg, rgba(9,14,32,.75), rgba(9,14,32,.75)),
+      radial-gradient(1200px 800px at 70% -10%, #1a2250 0%, #0b1020 60%),
+      url('img/bg-stars.jpg') center/cover fixed no-repeat;
+    }
     a{color:var(--accent)}
     header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px clamp(16px,3vw,28px); border-bottom:1px solid #1c2648; backdrop-filter:saturate(120%) blur(6px); position:sticky; top:0; background:linear-gradient(180deg, rgba(9,14,32,.7), rgba(9,14,32,.3)); z-index:5}
     .title{display:flex; gap:12px; align-items:center}
@@ -19,8 +23,21 @@
     .progress{opacity:.9}
 
     main{max-width:1200px; margin:24px auto; padding:0 clamp(12px,3vw,28px) 40px}
-    .grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr)); gap:18px}
 
+    /* === Deck-Übersicht (Stacks) === */
+    .deck-grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:18px}
+    .deck{position:relative; border:1px solid #223169; background:linear-gradient(180deg,#121a3a,#0d1431 60%, #0b1022); border-radius:18px; padding:18px; overflow:hidden; cursor:pointer; transition: transform .15s ease, box-shadow .15s ease}
+    .deck:hover{transform: translateY(-2px); box-shadow:0 12px 30px rgba(0,0,0,.35)}
+    .deck .cover{height:160px; border:1px solid #29408b; border-radius:14px; background:radial-gradient(500px 240px at 60% 20%, rgba(124,243,214,.2), transparent 60%), linear-gradient(180deg,#0f183a,#0b1128); display:grid; place-items:center; font-size:42px; position:relative; overflow:hidden}
+    .deck .cover img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(105%) contrast(105%)}
+    .deck .cover .veil{position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,14,32,.35), rgba(10,14,32,.55))} 
+    .deck .meta{display:flex; justify-content:space-between; margin-top:10px; color:var(--muted); font-size:13px}
+    .pill{background:#132143; color:#b8c7ea; border:1px solid #223169; padding:4px 8px; border-radius:999px; font-size:12px}
+
+    .toolbar{display:flex; gap:10px; flex-wrap:wrap}
+
+    /* === Kartenraster === */
+    .grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(var(--card-w), 1fr)); gap:18px}
     .slot{position:relative; width:100%; aspect-ratio: 200/280; border-radius:var(--radius); border:1px solid #233166; background:linear-gradient(180deg,#0f1534 0%,#0b1022 100%); display:grid; place-items:center; overflow:hidden}
     .slot.locked::before{content:"LOCKED"; position:absolute; inset:auto 8px 8px auto; font-size:10px; letter-spacing:.16em; color:#6d7bb1; background:#132045; border:1px solid #1e2b57; padding:3px 6px; border-radius:6px}
     .slot.locked .shine{position:absolute; inset:0; background:linear-gradient(120deg, transparent 0 35%, rgba(255,255,255,.06) 45%, transparent 60%); transform:skewX(-12deg); animation: shine 3.6s linear infinite}
@@ -74,9 +91,11 @@
     .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#10183c; border:1px solid #2a3777; padding:10px 14px; border-radius:10px; display:none; z-index:60}
     .toast.show{display:block}
 
-    .toolbar{display:flex; gap:10px; flex-wrap:wrap}
-
     .footer{opacity:.6; font-size:12px; margin-top:18px}
+
+    /* Breadcrumbs */
+    .crumbs{display:flex; gap:8px; align-items:center; margin:8px 0 18px}
+    .crumbs a{color:#b8c7ea; text-decoration:none; border:1px solid #223169; padding:6px 10px; border-radius:10px}
   </style>
 </head>
 <body>
@@ -85,7 +104,7 @@
       <div class="logo" aria-hidden="true"></div>
       <div>
         <div style="font-weight:800; letter-spacing:.02em">Deck Collector</div>
-        <div class="progress" id="progress">0 / 15 gesammelt</div>
+        <div class="progress" id="progress">0 Karten gesammelt</div>
       </div>
     </div>
     <div class="toolbar">
@@ -96,11 +115,16 @@
   </header>
 
   <main>
-    <p>Scanne die QR‑Codes deiner physischen Karten oder öffne einen Freischalt‑Link im Format <code>?unlock=CODE</code>. Beim Einlösen erscheint eine verbesserte Lootbox‑Animation. Special‑Karten glänzen mit Holo‑Effekt ✨. Tipp: Im Overlay kannst du die freigeschaltete Karte <strong>ziehen</strong> und <strong>drehen</strong>.</p>
+    <div id="view-decks">
+      <h2>Deine Decks</h2>
+      <div class="deck-grid" id="deckGrid"></div>
+      <p class="footer">Tipp: Tippe auf einen Stapel, um sein Kartendeck zu öffnen. QR-Codes funktionieren weiterhin deckübergreifend.</p>
+    </div>
 
-    <section class="grid" id="grid"></section>
-
-    <p class="footer">Hinweis: Diese Demo speichert deinen Fortschritt im <em>localStorage</em> deines Geräts. Für Logins/Serverfunktionen später API/DB ergänzen.</p>
+    <div id="view-deck" style="display:none">
+      <div class="crumbs"><a href="#" id="backToDecks">← Zurück zu allen Decks</a><span class="pill" id="deckName"></span></div>
+      <section class="grid" id="grid"></section>
+    </div>
   </main>
 
   <!-- Lootbox Overlay -->
@@ -127,27 +151,61 @@
 
 <script>
 /***********************
- * FINAL CARDS (mit Bildern)
+ * DECKS & CARDS (mit Bildern)
  ***********************/
-const CARDS = [
-  {id:"c01", name:"Welcome to the Castle", img:"img/karte1.png",  special:false, code:"1501"},
-  {id:"c02", name:"Date Night",           img:"img/karte2.png",  special:false, code:"1502"},
-  {id:"c03", name:"Pyjama Party",         img:"img/karte3.png",  special:false, code:"1503"},
-  {id:"c04", name:"Dance with me",        img:"img/karte4.png",  special:false, code:"1504"},
-  {id:"c05", name:"Cancun Weather",       img:"img/karte5.png",  special:false, code:"1505"},
-  {id:"c06", name:"I LOVE You",           img:"img/karte6.png",  special:false, code:"1506"},
-  {id:"c07", name:"Happy Wife",           img:"img/karte7.png",  special:false, code:"1507"},
-  {id:"c08", name:"Five Villages?",       img:"img/karte8.png",  special:false, code:"1508"},
-  {id:"c09", name:"Matching Clothes",     img:"img/karte9.png",  special:false, code:"1509"},
-  {id:"c10", name:"In the Heide",         img:"img/karte10.png", special:false, code:"1510"},
-  {id:"c11", name:"Cat Love",             img:"img/karte11.png", special:false, code:"1511"},
-  {id:"c12", name:"Gelato mi Amore",      img:"img/karte12.png", special:false, code:"1512"},
-  {id:"s01", name:"Wedding Dream",        img:"img/holo1.png",   special:true,  code:"HOLO1"},
-  {id:"s02", name:"Taco Lover",           img:"img/holo2.png",   special:true,  code:"HOLO2"},
-  {id:"s03", name:"Japan Trip",           img:"img/holo3.png",   special:true,  code:"HOLO3"},
+const DECKS = [
+  {
+    id: 'season1',
+    name: 'Season 1',
+    cover: 'S1',
+    coverImg: 'img/cover-season1.jpg',
+    cards: [
+      {id:"c01", name:"Welcome to the Castle", img:"img/karte1.png",  special:false, code:"1501"},
+      {id:"c02", name:"Date Night",           img:"img/karte2.png",  special:false, code:"1502"},
+      {id:"c03", name:"Pyjama Party",         img:"img/karte3.png",  special:false, code:"1503"},
+      {id:"c04", name:"Dance with me",        img:"img/karte4.png",  special:false, code:"1504"},
+      {id:"c05", name:"Cancun Weather",       img:"img/karte5.png",  special:false, code:"1505"},
+      {id:"c06", name:"I LOVE You",           img:"img/karte6.png",  special:false, code:"1506"},
+      {id:"c07", name:"Happy Wife",           img:"img/karte7.png",  special:false, code:"1507"},
+      {id:"c08", name:"Five Villages?",       img:"img/karte8.png",  special:false, code:"1508"},
+      {id:"c09", name:"Matching Clothes",     img:"img/karte9.png",  special:false, code:"1509"},
+      {id:"c10", name:"In the Heide",         img:"img/karte10.png", special:false, code:"1510"},
+      {id:"c11", name:"Cat Love",             img:"img/karte11.png", special:false, code:"1511"},
+      {id:"c12", name:"Gelato mi Amore",      img:"img/karte12.png", special:false, code:"1512"}
+    ]
+  },
+  {
+    id: 'mystery',
+    name: 'MysteryHolo',
+    cover: '✨',
+    coverImg: 'img/cover-mystery.jpg',
+    cards: [
+      {id:"s01", name:"Wedding Dream", img:"img/holo1.png", special:true,  code:"HOLO1"},
+      {id:"s02", name:"Taco Lover",    img:"img/holo2.png", special:true,  code:"HOLO2"},
+      {id:"s03", name:"Japan Trip",    img:"img/holo3.png", special:true,  code:"HOLO3"}
+    ]
+  },
+  {
+    id: 'season2',
+    name: 'Season 2',
+    cover: 'S2',
+    coverImg: 'img/cover-season2.jpg',
+    cards: [
+      {id:"s2c01", name:"Northernlights",         img:"img/Travel1.png",  special:false, code:"S2-01"},
+      {id:"s2c02", name:"Luchador Love",           img:"img/Travel2.png",  special:false, code:"S2-02"},
+      {id:"s2c03", name:"The boy from the 8",      img:"img/Travel3.png",  special:false, code:"S2-03"},
+      {id:"s2c04", name:"Büsum Night",             img:"img/Travel4.png",  special:false, code:"S2-04"},
+      {id:"s2c05", name:"Vibing",                   img:"img/Travel5.png",  special:false, code:"S2-05"},
+      {id:"s2c06", name:"Palacio de Correos",      img:"img/Travel6.png",  special:false, code:"S2-06"},
+      {id:"s2c07", name:"Acapulco Tourist Look",   img:"img/Travel7.png",  special:false, code:"S2-07"},
+      {id:"s2c08", name:"Ruka Snowboarding",        img:"img/Travel8.png",  special:false, code:"S2-08"},
+      {id:"s2c09", name:"Mexican Goodbye",          img:"img/Travel9.png",  special:false, code:"S2-09"},
+      {id:"s2c10", name:"Happy Birthday!!!",        img:"img/Travel10.png", special:false, code:"S2-10"}
+    ]
+  }
 ];
 
-const STORAGE_KEY = "deck-collector-v1";
+const STORAGE_KEY = "deck-collector-v2"; // v2 wegen neuer Struktur
 
 /***********************
  * UTILITIES           *
@@ -157,20 +215,72 @@ const el = (tag, cls) => {const n=document.createElement(tag); if(cls) n.classNa
 const toast = (msg, ms=2400)=>{const t=qs('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), ms)};
 const save = (ids)=> localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
 const load = ()=> { try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }catch{ return [] } };
+const ALL_CARDS = DECKS.flatMap(d=> d.cards.map(c=> ({...c, deckId:d.id})) );
+
+let CURRENT_DECK = null; // deckId oder null (Übersicht)
 
 /***********************
- * RENDER GRID         *
+ * DECK-ÜBERSICHT      *
  ***********************/
-function renderGrid(){
+function renderDecks(){
+  CURRENT_DECK = null;
+  qs('#view-decks').style.display='block';
+  qs('#view-deck').style.display='none';
+
+  const own = new Set(load());
+  const deckGrid = qs('#deckGrid');
+  deckGrid.innerHTML='';
+  DECKS.forEach(deck=>{
+    const total = deck.cards.length;
+    const got = deck.cards.filter(c=> own.has(c.id)).length;
+    const node = el('div','deck');
+    const cover = el('div','cover');
+    if(deck.coverImg){
+      const img = new Image(); img.src = deck.coverImg; img.alt = deck.name;
+      cover.appendChild(img);
+      const veil = el('div','veil'); cover.appendChild(veil);
+    } else {
+      cover.textContent = deck.cover;
+    }
+    const h3 = document.createElement('h3'); h3.textContent = deck.name; h3.style.margin='12px 0 2px';
+    const meta = el('div','meta'); meta.innerHTML = `<span>${got} / ${total} gesammelt</span><span class="pill">${deck.id}</span>`;
+    node.append(cover, h3, meta);
+    node.addEventListener('click', ()=> openDeck(deck.id));
+    deckGrid.appendChild(node);
+  });
+  updateGlobalProgress();
+}
+
+function openDeck(deckId){
+  CURRENT_DECK = deckId;
+  const deck = DECKS.find(d=>d.id===deckId);
+  qs('#deckName').textContent = deck.name;
+  qs('#view-decks').style.display='none';
+  qs('#view-deck').style.display='block';
+  renderGrid(deckId);
+}
+
+qs('#backToDecks').addEventListener('click', (e)=>{ e.preventDefault(); renderDecks(); });
+
+function updateGlobalProgress(){
+  const own = new Set(load());
+  qs('#progress').textContent = `${own.size} / ${ALL_CARDS.length} Karten gesammelt`;
+}
+
+/***********************
+ * RENDER GRID (Deck)  *
+ ***********************/
+function renderGrid(deckId){
+  const deck = DECKS.find(d=>d.id===deckId);
   const own = new Set(load());
   const grid = qs('#grid');
   grid.innerHTML = '';
-  CARDS.forEach(card => {
+  deck.cards.forEach(card => {
     const slot = el('div','slot' + (own.has(card.id)?'':' locked'));
 
     if(own.has(card.id)){
       const cardEl = makeCard(card);
-      enableTilt(cardEl); // hübscher 3D-Tilt im Grid
+      enableTilt(cardEl);
       cardEl.title = 'Klicke zum Anzeigen';
       cardEl.addEventListener('click', ()=> viewCard(card));
       slot.appendChild(cardEl);
@@ -183,7 +293,7 @@ function renderGrid(){
     }
     grid.appendChild(slot);
   });
-  qs('#progress').textContent = `${own.size} / ${CARDS.length} gesammelt`;
+  updateGlobalProgress();
 }
 
 function makeCard(card){
@@ -198,12 +308,12 @@ function makeCard(card){
 }
 
 /***********************
- * VIEW (Overlay) & INTERAKTION
+ * OVERLAY & INTERAKTION
  ***********************/
 function viewCard(card){
   const overlay = qs('#overlay');
   overlay.classList.add('active');
-  setupFlyCard(card); // Karte ins Overlay laden
+  setupFlyCard(card);
 }
 
 function setupFlyCard(card){
@@ -218,8 +328,7 @@ function setupFlyCard(card){
   const img = document.createElement('img'); img.src = card.img; img.alt = card.name; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.borderRadius='10px';
   illus.appendChild(img);
   fly.style.opacity = 1; fly.style.transform='translateY(0) scale(1)';
-
-  enableSpinAndDrag(fly); // <— neue Interaktion: ziehen & drehen
+  enableSpinAndDrag(fly);
 }
 
 function enableTilt(node){
@@ -239,75 +348,56 @@ function enableTilt(node){
   node.addEventListener('pointerup', reset);
 }
 
-// Interaktive Rotation + Verschieben + Zoom im Overlay
+// Linksklick drehen, Shift+Drag verschieben, Wheel/Pinch zoomen
 function enableSpinAndDrag(node){
   let isDown=false, lastX=0, lastY=0;
   let rotX=0, rotY=0, tx=0, ty=0, scale=1;
   let vx=0, vy=0, vrx=0, vry=0, vs=0, raf;
   const maxTilt=45, minScale=0.6, maxScale=1.8;
-
-  // Pinch support
   let pointers=new Map();
-  function pointerAvg(){ let sx=0, sy=0; for(const p of pointers.values()){ sx+=p.x; sy+=p.y } const n=pointers.size||1; return {x:sx/n, y:sy/n} }
+  const clampScale=()=>{ scale = Math.max(minScale, Math.min(maxScale, scale)) };
+  const apply=()=>{ node.style.transform = `translate(${tx}px, ${ty}px) perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})` };
+  const inertia=()=>{ vx*=0.92; vy*=0.92; vrx*=0.92; vry*=0.92; vs*=0.85; tx+=vx; ty+=vy; rotX+=vry; rotY+=vrx; scale+=vs; clampScale(); apply(); if(Math.abs(vx)+Math.abs(vy)+Math.abs(vrx)+Math.abs(vry)+Math.abs(vs) > 0.06){ raf=requestAnimationFrame(inertia) } };
+
   function pinchDist(){ const arr=[...pointers.values()]; if(arr.length<2) return 0; const dx=arr[0].x-arr[1].x, dy=arr[0].y-arr[1].y; return Math.hypot(dx,dy) }
   let baseDist=0, baseScale=1;
 
-  const apply=()=>{ node.style.transform = `translate(${tx}px, ${ty}px) perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})` };
-  const clampScale=()=>{ scale = Math.max(minScale, Math.min(maxScale, scale)) };
-
-  const inertia=()=>{
-    vx*=0.92; vy*=0.92; vrx*=0.92; vry*=0.92; vs*=0.85;
-    tx+=vx; ty+=vy; rotX+=vry; rotY+=vrx; scale+=vs; clampScale();
-    apply();
-    if(Math.abs(vx)+Math.abs(vy)+Math.abs(vrx)+Math.abs(vry)+Math.abs(vs) > 0.06){ raf=requestAnimationFrame(inertia) }
-  };
-
-  node.onpointerdown = (e)=>{
-    isDown=true; node.setPointerCapture(e.pointerId); lastX=e.clientX; lastY=e.clientY; if(raf) cancelAnimationFrame(raf);
-    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pointers.size===2){ baseDist=pinchDist(); baseScale=scale }
-  };
+  node.onpointerdown = (e)=>{ isDown=true; node.setPointerCapture(e.pointerId); lastX=e.clientX; lastY=e.clientY; if(raf) cancelAnimationFrame(raf); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(pointers.size===2){ baseDist=pinchDist(); baseScale=scale } };
   node.onpointermove = (e)=>{
     pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pointers.size>=2){
-      // Pinch zoom around average
-      const d=pinchDist(); if(baseDist>0){ const factor=d/baseDist; scale = baseScale * factor; clampScale(); apply(); }
-      return;
-    }
-    if(!isDown) return;
-    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
-    // Left-drag rotates by default
+    if(pointers.size>=2){ const d=pinchDist(); if(baseDist>0){ const factor=d/baseDist; scale = baseScale * factor; clampScale(); apply(); } return; }
+    if(!isDown) return; const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    // Default: drehen
     rotY += dx*0.35; rotX -= dy*0.35; rotX=Math.max(-maxTilt, Math.min(maxTilt, rotX)); vry = -dy*0.35; vrx = dx*0.35;
-    // Hold SHIFT to drag/translate instead of rotate
+    // Shift: verschieben
     if(e.shiftKey){ rotY -= dx*0.35; rotX += dy*0.35; vry=vrx=0; tx+=dx; ty+=dy; vx=dx; vy=dy; }
     apply();
   };
   node.onpointerup = (e)=>{ isDown=false; pointers.delete(e.pointerId); if(pointers.size<2){ raf=requestAnimationFrame(inertia) } };
   node.onpointercancel = (e)=>{ pointers.delete(e.pointerId) };
-
-  // Wheel zoom
   node.onwheel = (e)=>{ e.preventDefault(); const delta = -Math.sign(e.deltaY) * (Math.abs(e.deltaY)>40? 0.08:0.04); scale += delta; clampScale(); vs=delta; apply(); };
-
-  // Double-click to reset pose
   node.ondblclick = ()=>{ rotX=rotY=tx=ty=0; scale=1; apply(); };
 }
 
-/*****************************
+/***********************
  * UNLOCK FLOW (QR)    *
  ***********************/
 function unlockByCode(code){
   if(!code) return false;
-  const card = CARDS.find(c => c.code.toUpperCase() === String(code).toUpperCase());
+  const card = ALL_CARDS.find(c => c.code && c.code.toUpperCase() === String(code).toUpperCase());
   if(!card){ toast('Ungültiger Code'); return false }
   const own = new Set(load());
-  if(own.has(card.id)){ toast('Diese Karte hast du bereits.'); setupFlyCard(card); openOverlayFX(); return true }
-  own.add(card.id); save([...own]); renderGrid();
+  if(own.has(card.id)){ toast('Diese Karte hast du bereits.'); setupFlyCard(card); openOverlayFX();
+    if(CURRENT_DECK!==card.deckId) openDeck(card.deckId);
+    return true }
+  own.add(card.id); save([...own]);
+  if(CURRENT_DECK!==card.deckId) openDeck(card.deckId); else renderGrid(CURRENT_DECK);
   playLootbox(card);
   return true;
 }
 
 /***********************
- * LOOTBOX ANIMATION (verbessert)
+ * LOOTBOX (wie vorher, deck-agnostisch)
  ***********************/
 function openOverlayFX(){ qs('#overlay').classList.add('active') }
 
@@ -315,55 +405,15 @@ function playLootbox(card){
   const overlay = qs('#overlay'); const lid = qs('#lid'); const fly = qs('#flyCard'); const chest=qs('#chest'); const rays=qs('#rays'); const flash=qs('#flash');
   overlay.classList.add('active');
   setupFlyCard(card);
-
-  // Reset visuals
   rays.style.opacity=0; flash.style.opacity=0; fly.style.opacity=0; fly.style.transform='translateY(30px) scale(.92) rotate(0deg)'; chest.classList.remove('glow');
-
-  // Chest bounce in
   chest.animate([{ transform:'translateY(0)' },{ transform:'translateY(-6px)' },{ transform:'translateY(0)' }], { duration: 420, easing:'ease-out' });
-
-  // Open lid
   lid.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-112deg)' }], { duration: 680, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
-
-  // Rays + flash
-  setTimeout(()=>{
-    rays.animate([{ opacity:0, transform:'scale(.8) rotate(0deg)' }, { opacity:1, transform:'scale(1) rotate(120deg)' }], { duration:500, easing:'ease-out', fill:'forwards' });
-    flash.animate([{ opacity:0 }, { opacity:1 }, { opacity:0 }], { duration:420, easing:'ease-out' });
-    chest.classList.add('glow');
-  }, 420);
-
-  // Card fly out
-  setTimeout(()=>{
-    fly.style.opacity=1;
-    const anim = fly.animate([
-      { transform:'translateY(30px) scale(.92) rotate(-4deg)' },
-      { transform:'translateY(-140px) scale(1) rotate(0deg)' },
-    ], { duration: 880, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
-    anim.onfinish = ()=> { burstConfetti(160); haloRing(); glowPulse(fly) }
-  }, 520);
+  setTimeout(()=>{ rays.animate([{ opacity:0, transform:'scale(.8) rotate(0deg)' }, { opacity:1, transform:'scale(1) rotate(120deg)' }], { duration:500, easing:'ease-out', fill:'forwards' }); flash.animate([{ opacity:0 }, { opacity:1 }, { opacity:0 }], { duration:420, easing:'ease-out' }); chest.classList.add('glow'); }, 420);
+  setTimeout(()=>{ fly.style.opacity=1; const anim = fly.animate([{ transform:'translateY(30px) scale(.92) rotate(-4deg)' },{ transform:'translateY(-140px) scale(1) rotate(0deg)' }], { duration: 880, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' }); anim.onfinish = ()=> { burstConfetti(160); haloRing(); glowPulse(fly) } }, 520);
 }
-
 function glowPulse(node){ node.animate([{ boxShadow:'0 0 0px rgba(124,243,214,0.0)' },{ boxShadow:'0 0 60px rgba(124,243,214,0.55)' },{ boxShadow:'0 0 0px rgba(124,243,214,0.0)' }], { duration: 1000, easing:'ease-in-out' }); }
-
-function burstConfetti(n=120){
-  for(let i=0;i<n;i++){
-    const p = el('div');
-    const size = 6 + Math.random()*6; p.style.width=p.style.height=size+"px";
-    p.style.position='fixed'; p.style.left=(Math.random()*100)+"%"; p.style.top='-10px';
-    p.style.background = `hsl(${Math.random()*360}, 85%, 65%)`;
-    p.style.borderRadius = Math.random()>.5? '2px':'50%';
-    p.style.pointerEvents='none'; p.style.zIndex=60; p.style.filter='drop-shadow(0 2px 6px rgba(0,0,0,.35))';
-    document.body.appendChild(p);
-    const dx = (Math.random()-.5)*160; const dur= 1500 + Math.random()*1200;
-    p.animate([{ transform:`translate(0, 0) rotate(0deg)`, opacity:1 },{ transform:`translate(${dx}px, 100vh) rotate(${Math.random()*600-300}deg)`, opacity:.9 }], { duration: dur, easing:'cubic-bezier(.2,.8,.2,1)' }).onfinish = ()=> p.remove();
-  }
-}
-
-function haloRing(){
-  const ring = el('div'); ring.style.position='absolute'; ring.style.width='20px'; ring.style.height='20px'; ring.style.border='2px solid rgba(124,243,214,.8)'; ring.style.borderRadius='50%'; ring.style.top='50%'; ring.style.left='50%'; ring.style.transform='translate(-50%,-50%)'; ring.style.opacity='0.9'; ring.style.filter='blur(0.6px)'; ring.style.zIndex=55;
-  qs('.stage').appendChild(ring);
-  ring.animate([{ transform:'translate(-50%,-50%) scale(.6)', opacity:.9 }, { transform:'translate(-50%,-50%) scale(6)', opacity:0 }], { duration: 900, easing:'ease-out' }).onfinish = ()=> ring.remove();
-}
+function burstConfetti(n=120){ for(let i=0;i<n;i++){ const p = el('div'); const size = 6 + Math.random()*6; p.style.width=p.style.height=size+"px"; p.style.position='fixed'; p.style.left=(Math.random()*100)+"%"; p.style.top='-10px'; p.style.background = `hsl(${Math.random()*360}, 85%, 65%)`; p.style.borderRadius = Math.random()>.5? '2px':'50%'; p.style.pointerEvents='none'; p.style.zIndex=60; p.style.filter='drop-shadow(0 2px 6px rgba(0,0,0,.35))'; document.body.appendChild(p); const dx = (Math.random()-.5)*160; const dur= 1500 + Math.random()*1200; p.animate([{ transform:`translate(0, 0) rotate(0deg)`, opacity:1 },{ transform:`translate(${dx}px, 100vh) rotate(${Math.random()*600-300}deg)`, opacity:.9 }], { duration: dur, easing:'cubic-bezier(.2,.8,.2,1)' }).onfinish = ()=> p.remove(); } }
+function haloRing(){ const ring = el('div'); ring.style.position='absolute'; ring.style.width='20px'; ring.style.height='20px'; ring.style.border='2px solid rgba(124,243,214,.8)'; ring.style.borderRadius='50%'; ring.style.top='50%'; ring.style.left='50%'; ring.style.transform='translate(-50%,-50%)'; ring.style.opacity='0.9'; ring.style.filter='blur(0.6px)'; ring.style.zIndex=55; qs('.stage').appendChild(ring); ring.animate([{ transform:'translate(-50%,-50%) scale(.6)', opacity:.9 }, { transform:'translate(-50%,-50%) scale(6)', opacity:0 }], { duration: 900, easing:'ease-out' }).onfinish = ()=> ring.remove(); }
 
 /***********************
  * CAMERA QR (optional)
@@ -404,19 +454,36 @@ async function scanCamera(){
  ***********************/
 function copyUnlockLink(){
   const owned = new Set(load());
-  const next = CARDS.find(c=>!owned.has(c.id));
-  if(!next){ toast('Du hast bereits alle Karten!'); return }
+  const pool = CURRENT_DECK ? DECKS.find(d=>d.id===CURRENT_DECK).cards : ALL_CARDS;
+  const next = pool.find(c=>!owned.has(c.id));
+  if(!next){ toast('Du hast bereits alle Karten in diesem Bereich!'); return }
   const url = new URL(location.href);
   url.searchParams.set('unlock', next.code);
   navigator.clipboard.writeText(url.toString()).then(()=> toast(`Link kopiert für: ${next.name}`))
 }
 
-renderGrid();
-qs('#resetBtn').addEventListener('click', ()=>{ localStorage.removeItem(STORAGE_KEY); renderGrid(); toast('Sammlung zurückgesetzt') });
+// --- Einfache Debug-Tests (brechen nichts in der UI) ---
+(function runSmokeTests(){
+  try{
+    console.assert(Array.isArray(DECKS) && DECKS.length===3, 'DECKS sollte 3 Decks enthalten');
+    const total = DECKS.reduce((s,d)=>s+d.cards.length,0);
+    console.assert(ALL_CARDS.length===total, 'ALL_CARDS Länge stimmt');
+    const byCode = code => ALL_CARDS.find(c=> (c.code||'').toUpperCase()===(code||'').toUpperCase());
+    console.assert(byCode('1501')?.deckId==='season1', 'Code 1501 → season1');
+    console.assert(byCode('HOLO2')?.deckId==='mystery', 'Code HOLO2 → mystery');
+    console.assert(byCode('S2-10')?.deckId==='season2', 'Code S2-10 → season2');
+    console.log('[Tests] alle Smoke-Tests bestanden');
+  }catch(e){ console.warn('[Tests] Fehler', e); }
+})();
+
+// Boot
+renderDecks();
+qs('#resetBtn').addEventListener('click', ()=>{ localStorage.removeItem(STORAGE_KEY); renderDecks(); toast('Sammlung zurückgesetzt') });
 qs('#shareBtn').addEventListener('click', copyUnlockLink);
 qs('#scanBtn').addEventListener('click', scanCamera);
 qs('#closeOverlay').addEventListener('click', ()=>{ qs('#overlay').classList.remove('active'); });
 
+// URL unlock
 const params = new URLSearchParams(location.search);
 const unlockParam = params.get('unlock');
 if(unlockParam){ setTimeout(()=> unlockByCode(unlockParam), 200) }
